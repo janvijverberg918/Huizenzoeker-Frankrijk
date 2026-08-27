@@ -1,6 +1,5 @@
 from time import perf_counter
 
-from ardenneimmo import zoek_ardenneimmo
 from config import (
     ACTIEVE_ZOEKGEBIEDEN,
     APP_NAME,
@@ -10,87 +9,251 @@ from config import (
     ZOEKPROFIELEN,
     maak_csv_bestandsnaam,
 )
+
 from deduplicatie import verwijder_dubbele_woningen
 from emailer import stuur_nieuwe_woningen
-from immovlan import zoek_immovlan
-from immoweb import zoek_immoweb
-from biddit import zoek_biddit
 from logger import logger
-
-from advertentie_analyse import haal_immoweb_advertentie_op
-from advertentie_analyse_ardenneimmo import (
-    haal_ardenneimmo_advertentie_op,
-)
-from advertentie_analyse_immovlan import (
-    haal_immovlan_advertentie_op,
-)
-from advertentie_analyse_biddit import (
-    haal_biddit_advertentie_op,
-)
 from ai_analyse import analyseer_woning
 
-def bepaal_bron(woning):
+
+# ============================================================
+# HUIZENZOEKER FRANKRIJK
+# ============================================================
+#
+# Architectuur
+# ------------
+#
+# Dit bestand is de centrale "regisseur" van de Huizenzoeker.
+#
+# Het weet NIET hoe een specifieke woningsite technisch werkt.
+# Dat hoort thuis in aparte bronmodules, bijvoorbeeld:
+#
+#   seloger.py
+#   leboncoin.py
+#   bienici.py
+#   logicimmo.py
+#
+# De bronmodules worden hieronder geregistreerd zodra ze
+# ontwikkeld en getest zijn.
+#
+# Daardoor blijft huizenzoeker.py zoveel mogelijk
+# bron-onafhankelijk.
+# ============================================================
+
+
+# ============================================================
+# BRONREGISTRATIE
+# ============================================================
+#
+# Iedere zoekfunctie moet uiteindelijk hetzelfde contract
+# gebruiken:
+#
+# def zoek_bron(
+#     postcode,
+#     woningtype,
+#     min_prijs,
+#     max_prijs,
+#     csv_bestand,
+# ):
+#     ...
+#     return lijst_met_nieuwe_woningen
+#
+#
+# Iedere detailfunctie krijgt een URL en retourneert een
+# dictionary met de uitgelezen woningdetails:
+#
+# def haal_bron_advertentie_op(url):
+#     ...
+#     return advertentie
+#
+#
+# Tijdens fase 1.0.0-dev zijn de registers nog leeg.
+# ============================================================
+
+
+ZOEKFUNCTIES = {
+    # Voorbeeld voor later:
+    #
+    # "seloger": zoek_seloger,
+}
+
+
+DETAILFUNCTIES = {
+    # Voorbeeld voor later:
+    #
+    # "seloger": haal_seloger_advertentie_op,
+}
+
+
+# Mooie namen voor logging en e-mail/statistieken.
+#
+# Zodra een bron wordt toegevoegd, komt hier ook de
+# gebruikersvriendelijke naam te staan.
+BRONNAMEN = {
+    # "seloger": "SeLoger",
+    # "leboncoin": "Leboncoin",
+    # "bienici": "Bien'ici",
+    # "logicimmo": "Logic-Immo",
+}
+
+
+# ============================================================
+# HULPFUNCTIES BRONNEN
+# ============================================================
+
+
+def actieve_websites_bepalen():
     """
-    Geeft voor een woning een gestandaardiseerde bronnaam terug.
+    Geeft alle unieke websites terug die in de actieve
+    zoekprofielen zijn geconfigureerd.
+
+    Voorbeeld:
+
+    [
+        "seloger",
+        "bienici",
+    ]
+
+    Een website wordt maar één keer opgenomen, ook wanneer
+    deze later in meerdere zoekprofielen zou voorkomen.
     """
+
+    websites = []
+
+    for profiel in ZOEKPROFIELEN:
+        for website in profiel.get(
+            "websites",
+            [],
+        ):
+            if website not in websites:
+                websites.append(
+                    website
+                )
+
+    return websites
+
+
+def mooie_bronnaam(bron_sleutel):
+    """
+    Zet een interne bronsleutel om naar een leesbare naam.
+
+    Bijvoorbeeld:
+
+        "seloger" -> "SeLoger"
+
+    Als een bron nog niet in BRONNAMEN staat, wordt de
+    interne sleutel gebruikt.
+    """
+
+    if not bron_sleutel:
+        return "Onbekend"
+
+    return BRONNAMEN.get(
+        bron_sleutel,
+        str(bron_sleutel),
+    )
+
+
+def bepaal_bron_sleutel(woning):
+    """
+    Bepaalt van welke bron een woning afkomstig is.
+
+    Nieuwe Franse bronmodules moeten bij voorkeur het veld
+
+        bron_sleutel
+
+    aan iedere woning toevoegen.
+
+    Bijvoorbeeld:
+
+        woning["bron_sleutel"] = "seloger"
+
+    huizenzoeker.py voegt dit veld ook automatisch toe als
+    een zoekmodule dit vergeet.
+    """
+
+    bron_sleutel = woning.get(
+        "bron_sleutel"
+    )
+
+    if bron_sleutel:
+        return str(
+            bron_sleutel
+        ).strip().lower()
 
     bron = str(
         woning.get(
             "bron",
             "",
         )
-    ).lower()
+    ).strip().lower()
 
-    link = str(
-        woning.get(
-            "link",
-            "",
+    # Eerst kijken of de leesbare bronnaam overeenkomt.
+    for sleutel, naam in BRONNAMEN.items():
+        if bron == naam.lower():
+            return sleutel
+
+        if bron == sleutel.lower():
+            return sleutel
+
+    return ""
+
+
+def bepaal_bronnaam(woning):
+    """
+    Geeft een leesbare bronnaam terug voor logging en
+    samenvattingen.
+    """
+
+    bron_sleutel = bepaal_bron_sleutel(
+        woning
+    )
+
+    if bron_sleutel:
+        return mooie_bronnaam(
+            bron_sleutel
         )
-    ).lower()
 
-    if (
-        "immoweb" in bron
-        or "immoweb.be" in link
-    ):
-        return "Immoweb"
+    bron = woning.get(
+        "bron"
+    )
 
-    if (
-        "immovlan" in bron
-        or "immovlan.be" in link
-    ):
-        return "Immovlan"
-
-    if (
-        "ardenne" in bron
-        or "ardenneimmo.be" in link
-    ):
-        return "Ardenne Immo"
-
-    if (
-        "biddit" in bron
-        or "biddit.be" in link
-    ):
-        return "Biddit"
+    if bron:
+        return str(bron)
 
     return "Onbekend"
 
-def verrijk_met_ai_huizencoach(woningen):
+
+# ============================================================
+# AI HUIZENCOACH
+# ============================================================
+
+
+def verrijk_met_ai_huizencoach(
+    woningen,
+):
     """
-    Verrijkt nieuwe woningen met een analyse
-    van de AI Huizencoach.
+    Verrijkt unieke nieuwe woningen met:
 
-    Momenteel ondersteund:
-    - Immoweb
-    - Ardenne Immo
-    - Immovlan
-    - Biddit
+    1. detailinformatie van de oorspronkelijke website;
+    2. analyse van de AI Huizencoach.
 
-  
-    Een fout bij één woning mag de overige woningen
-    niet tegenhouden.
+    BELANGRIJK
+    ----------
+    De AI wordt pas uitgevoerd NA centrale deduplicatie.
+
+    Daardoor analyseren we dezelfde woning niet meerdere
+    keren wanneer deze via verschillende zoekgebieden of
+    bronnen wordt gevonden.
+
+    Een fout bij één woning mag de overige woningen nooit
+    tegenhouden.
     """
 
-    totaal = len(woningen)
+    totaal = len(
+        woningen
+    )
+
     geanalyseerd = 0
     overgeslagen = 0
     mislukt = 0
@@ -109,13 +272,6 @@ def verrijk_met_ai_huizencoach(woningen):
         woningen,
         start=1,
     ):
-        bron = str(
-            woning.get(
-                "bron",
-                "",
-            )
-        ).lower()
-
         link = str(
             woning.get(
                 "link",
@@ -128,52 +284,43 @@ def verrijk_met_ai_huizencoach(woningen):
             "Onbekende woning",
         )
 
-        # -----------------------------------------------------
-        # Bron bepalen
-        # -----------------------------------------------------
-        is_immoweb = (
-            "immoweb" in bron
-            or "immoweb.be" in link.lower()
+        bron_sleutel = bepaal_bron_sleutel(
+            woning
         )
 
-        is_ardenneimmo = (
-            "ardenne" in bron
-            or "ardenneimmo.be" in link.lower()
+        bronnaam = bepaal_bronnaam(
+            woning
         )
 
-        is_immovlan = (
-            "immovlan" in bron
-            or "immovlan.be" in link.lower()
-        )
-        is_biddit = (
-            "biddit" in bron
-            or "biddit.be" in link.lower()
-        )
-        # -----------------------------------------------------
-        # Alleen ondersteunde bronnen analyseren
-        # -----------------------------------------------------
-        if not (
-            is_immoweb
-            or is_ardenneimmo
-            or is_immovlan
-            or is_biddit
-        ):
-            overgeslagen += 1
-
-            logger.info(
-                "AI-analyse overgeslagen voor "
-                "nog niet ondersteunde bron: %s",
-                link,
-            )
-
-            continue
+        # ----------------------------------------------------
+        # Link controleren
+        # ----------------------------------------------------
 
         if not link:
             overgeslagen += 1
 
             logger.warning(
                 "AI-analyse overgeslagen: woning heeft "
-                "geen link"
+                "geen advertentielink"
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # Detailparser zoeken
+        # ----------------------------------------------------
+
+        detailfunctie = DETAILFUNCTIES.get(
+            bron_sleutel
+        )
+
+        if detailfunctie is None:
+            overgeslagen += 1
+
+            logger.info(
+                "AI-analyse overgeslagen voor bron '%s': "
+                "nog geen detailparser geregistreerd",
+                bronnaam,
             )
 
             continue
@@ -184,83 +331,80 @@ def verrijk_met_ai_huizencoach(woningen):
             f"AI analyseert: {titel}"
         )
 
+        print(
+            f"    Bron   : {bronnaam}"
+        )
+
         try:
-            # -------------------------------------------------
+            # ------------------------------------------------
             # Detailpagina uitlezen
-            # -------------------------------------------------
-            if is_immoweb:
-                logger.info(
-                    "Immoweb-detailanalyse gestart voor %s",
-                    link,
+            # ------------------------------------------------
+
+            logger.info(
+                "%s-detailanalyse gestart voor %s",
+                bronnaam,
+                link,
+            )
+
+            advertentie = detailfunctie(
+                link
+            )
+
+            if not isinstance(
+                advertentie,
+                dict,
+            ):
+                raise ValueError(
+                    f"Detailparser van {bronnaam} "
+                    f"heeft geen dictionary teruggegeven"
                 )
 
-                advertentie = haal_immoweb_advertentie_op(
-                    link
-                )
-            
-            elif is_ardenneimmo:
-                logger.info(
-                    "Ardenne Immo-detailanalyse gestart voor %s",
-                    link,
-                )
-
-                advertentie = haal_ardenneimmo_advertentie_op(
-                    link
-                )
-
-            elif is_immovlan:
-                logger.info(
-                    "Immovlan-detailanalyse gestart voor %s",
-                    link,
-                )
-
-                advertentie = haal_immovlan_advertentie_op(
-                    link
-                )
-            elif is_biddit:
-                logger.info(
-                    "Biddit-detailanalyse gestart voor %s",
-                    link,
-                )
-
-                advertentie = haal_biddit_advertentie_op(
-                    link
-                )
-            else:
-                # Dit zou door bovenstaande controle
-                # niet bereikbaar moeten zijn.
-                overgeslagen += 1
-                continue
-
-            # -------------------------------------------------
-            # Gegevens uit het zoekresultaat behouden
+            # ------------------------------------------------
+            # Basisgegevens uit zoekresultaat behouden
+            # ------------------------------------------------
             #
-            # Als de detailpagina een waarde niet heeft,
-            # gebruiken we de reeds bekende waarde uit
-            # het zoekresultaat.
-            # -------------------------------------------------
+            # Als de detailpagina een waarde niet bevat,
+            # gebruiken we de waarde die we al vanuit de
+            # zoekresultaatkaart hadden.
+            # ------------------------------------------------
+
             for sleutel, waarde in woning.items():
                 if (
                     sleutel not in advertentie
-                    or advertentie.get(sleutel) in (
+                    or advertentie.get(
+                        sleutel
+                    ) in (
                         None,
                         "",
                         [],
                         {},
                     )
                 ):
-                    advertentie[sleutel] = waarde
+                    advertentie[
+                        sleutel
+                    ] = waarde
 
-            # -------------------------------------------------
+            # ------------------------------------------------
             # AI-analyse
-            # -------------------------------------------------
+            # ------------------------------------------------
+
             analyse = analyseer_woning(
                 advertentie
             )
 
-            # -------------------------------------------------
-            # AI-resultaat aan oorspronkelijke woning toevoegen
-            # -------------------------------------------------
+            if not isinstance(
+                analyse,
+                dict,
+            ):
+                raise ValueError(
+                    "AI Huizencoach heeft geen "
+                    "dictionary teruggegeven"
+                )
+
+            # ------------------------------------------------
+            # AI-resultaten opslaan
+            # ------------------------------------------------
+
             woning["ai_score"] = analyse.get(
                 "score"
             )
@@ -285,50 +429,53 @@ def verrijk_met_ai_huizencoach(woningen):
                 [],
             )
 
-            woning["ai_ontbrekende_informatie"] = analyse.get(
+            woning[
+                "ai_ontbrekende_informatie"
+            ] = analyse.get(
                 "ontbrekende_informatie",
                 [],
             )
 
-            woning["ai_betrouwbaarheid"] = analyse.get(
+            woning[
+                "ai_betrouwbaarheid"
+            ] = analyse.get(
                 "betrouwbaarheid",
                 "",
             )
 
-            # -------------------------------------------------
-            # Detailinformatie bewaren
-            # -------------------------------------------------
-            woning["advertentie_details"] = advertentie
+            # ------------------------------------------------
+            # Detaildata bewaren
+            # ------------------------------------------------
 
-            # -------------------------------------------------
-            # Gestructureerde detailkenmerken ook op
-            # woningniveau beschikbaar maken.
-            # -------------------------------------------------
+            woning[
+                "advertentie_details"
+            ] = advertentie
+
             kenmerken = advertentie.get(
                 "kenmerken",
                 {},
             )
 
             if kenmerken:
-                woning["kenmerken"] = kenmerken
+                woning[
+                    "kenmerken"
+                ] = kenmerken
 
-            # -------------------------------------------------
+            # ------------------------------------------------
             # Hoofdfoto
-            # -------------------------------------------------
+            # ------------------------------------------------
+
             fotos = advertentie.get(
                 "fotos",
                 [],
             )
 
             if fotos:
-                woning["hoofdfoto"] = fotos[0]
+                woning[
+                    "hoofdfoto"
+                ] = fotos[0]
 
             geanalyseerd += 1
-
-            print(
-                f"    Bron   : "
-                f"{advertentie.get('bron', 'Onbekend')}"
-            )
 
             print(
                 f"    Score  : "
@@ -356,38 +503,51 @@ def verrijk_met_ai_huizencoach(woningen):
                 link,
             )
 
-            # -------------------------------------------------
-            # De woning blijft gewoon in de resultaten staan.
+            # ------------------------------------------------
+            # Woning NIET verwijderen
+            # ------------------------------------------------
             #
-            # Een mislukte AI-analyse mag nooit betekenen dat
-            # we de woning niet meer per e-mail ontvangen.
-            # -------------------------------------------------
+            # Een mislukte AI-analyse mag nooit betekenen
+            # dat de gebruiker de woning niet ontvangt.
+            # ------------------------------------------------
+
             woning["ai_score"] = None
             woning["ai_advies"] = ""
             woning["ai_samenvatting"] = ""
             woning["ai_sterke_punten"] = []
             woning["ai_aandachtspunten"] = []
-            woning["ai_ontbrekende_informatie"] = []
-            woning["ai_betrouwbaarheid"] = ""
+
+            woning[
+                "ai_ontbrekende_informatie"
+            ] = []
+
+            woning[
+                "ai_betrouwbaarheid"
+            ] = ""
 
     print()
     print(
-        f"AI-analyses voltooid : {geanalyseerd}"
+        f"AI-analyses voltooid : "
+        f"{geanalyseerd}"
     )
 
     print(
-        f"AI overgeslagen      : {overgeslagen}"
+        f"AI overgeslagen      : "
+        f"{overgeslagen}"
     )
 
     print(
-        f"AI mislukt            : {mislukt}"
+        f"AI mislukt            : "
+        f"{mislukt}"
     )
 
     print("=" * 60)
 
     logger.info(
         "AI Huizencoach afgerond: "
-        "%s geanalyseerd, %s overgeslagen, %s mislukt",
+        "%s geanalyseerd, "
+        "%s overgeslagen, "
+        "%s mislukt",
         geanalyseerd,
         overgeslagen,
         mislukt,
@@ -395,28 +555,86 @@ def verrijk_met_ai_huizencoach(woningen):
 
     return woningen
 
+
+# ============================================================
+# MAIN
+# ============================================================
+
+
 def main():
+    """
+    Hoofdprogramma van Huizenzoeker Frankrijk.
+
+    Proces:
+
+    1. configuratie gebruiken;
+    2. zoekprofielen doorlopen;
+    3. zoekgebieden doorlopen;
+    4. actieve bronnen uitvoeren;
+    5. nieuwe advertenties verzamelen;
+    6. centrale deduplicatie;
+    7. detailanalyse + AI;
+    8. e-mail;
+    9. samenvatting en performance.
+    """
+
     starttijd = perf_counter()
 
     print("=" * 60)
-    print(f"{APP_NAME} {APP_VERSION}")
+    print(
+        f"{APP_NAME} {APP_VERSION}"
+    )
     print("=" * 60)
 
+    actieve_websites = (
+        actieve_websites_bepalen()
+    )
+
     if TEST_MODUS:
-        print("TESTMODUS ACTIEF")
         print(
-            f"Actieve zoekgebieden: {len(ACTIEVE_ZOEKGEBIEDEN)}"
+            "TESTMODUS ACTIEF"
         )
+
+        print(
+            f"Actieve zoekgebieden: "
+            f"{len(ACTIEVE_ZOEKGEBIEDEN)}"
+        )
+
         print("=" * 60)
 
-    logger.info("Huizenzoeker gestart")
+    logger.info(
+        "Huizenzoeker gestart"
+    )
 
     if TEST_MODUS:
         logger.info(
-            "TESTMODUS actief: %s van %s zoekgebieden worden gebruikt",
+            "TESTMODUS actief: "
+            "%s van %s zoekgebieden worden gebruikt",
             len(ACTIEVE_ZOEKGEBIEDEN),
             len(ZOEKGEBIEDEN),
         )
+
+    logger.info(
+        "Actieve websites: %s",
+        len(actieve_websites),
+    )
+
+    if actieve_websites:
+        logger.info(
+            "Websites in deze run: %s",
+            ", ".join(
+                actieve_websites
+            ),
+        )
+    else:
+        logger.info(
+            "Geen websites geconfigureerd "
+            "voor deze run"
+        )
+
+    # ========================================================
+    # Centrale statistieken
+    # ========================================================
 
     alle_nieuwe_woningen = []
 
@@ -424,24 +642,28 @@ def main():
     mislukte_zoekopdrachten = 0
     totaal_zoekopdrachten = 0
 
-    # ---------------------------------------------------------
-    # Performance-metingen
-    # ---------------------------------------------------------
+    # Performance per actieve bron.
     zoektijd_per_bron = {
-        "immoweb": 0.0,
-        "immovlan": 0.0,
-        "ardenneimmo": 0.0,
-        "biddit": 0.0,
+        website: 0.0
+        for website in actieve_websites
     }
 
     ai_looptijd = 0.0
     email_looptijd = 0.0
 
-    # ---------------------------------------------------------
-    # Alle zoekprofielen doorlopen
-    # ---------------------------------------------------------
+    # ========================================================
+    # Alle zoekprofielen
+    # ========================================================
+
     for profiel in ZOEKPROFIELEN:
-        profielnaam = profiel["naam"]
+        profielnaam = profiel[
+            "naam"
+        ]
+
+        websites_profiel = profiel.get(
+            "websites",
+            [],
+        )
 
         logger.info(
             "Zoekprofiel '%s' gestart",
@@ -450,20 +672,43 @@ def main():
 
         print()
         print("=" * 60)
-        print(f"Zoekprofiel: {profielnaam}")
+        print(
+            f"Zoekprofiel: "
+            f"{profielnaam}"
+        )
         print("=" * 60)
 
-        # -----------------------------------------------------
-        # Alleen de actieve zoekgebieden doorlopen
-        # -----------------------------------------------------
+        # ====================================================
+        # Zoekgebieden
+        # ====================================================
+
         for gebied in ACTIEVE_ZOEKGEBIEDEN:
-            gebied_naam = gebied["naam"]
-            postcode = gebied["postcode"]
+            gebied_naam = gebied[
+                "naam"
+            ]
+
+            postcode = gebied[
+                "postcode"
+            ]
+
+            departement = gebied.get(
+                "departement",
+                "",
+            )
 
             print()
             print(
-                f"Zoekgebied: {gebied_naam} ({postcode})"
+                f"Zoekgebied: "
+                f"{gebied_naam} "
+                f"({postcode})"
             )
+
+            if departement:
+                print(
+                    f"Departement: "
+                    f"{departement}"
+                )
+
             print("-" * 60)
 
             logger.info(
@@ -472,16 +717,22 @@ def main():
                 postcode,
             )
 
-            # -------------------------------------------------
-            # Alle websites voor dit profiel doorlopen
-            # -------------------------------------------------
-            for website in profiel["websites"]:
-                totaal_zoekopdrachten += 1
-                website_starttijd = perf_counter()
+            # ================================================
+            # Websites binnen dit profiel
+            # ================================================
 
-                csv_bestand = maak_csv_bestandsnaam(
-                    gebied,
-                    website,
+            for website in websites_profiel:
+                totaal_zoekopdrachten += 1
+
+                website_starttijd = (
+                    perf_counter()
+                )
+
+                csv_bestand = (
+                    maak_csv_bestandsnaam(
+                        gebied,
+                        website,
+                    )
                 )
 
                 logger.info(
@@ -493,78 +744,101 @@ def main():
                 )
 
                 logger.info(
-                    "CSV-bestand voor deze zoekopdracht: %s",
+                    "CSV-bestand voor deze "
+                    "zoekopdracht: %s",
                     csv_bestand,
                 )
 
                 try:
-                    # -----------------------------------------
-                    # Immoweb
-                    # -----------------------------------------
-                    if website == "immoweb":
-                        resultaten_website = zoek_immoweb(
+                    # ----------------------------------------
+                    # Geregistreerde zoekfunctie zoeken
+                    # ----------------------------------------
+
+                    zoekfunctie = (
+                        ZOEKFUNCTIES.get(
+                            website
+                        )
+                    )
+
+                    if zoekfunctie is None:
+                        raise ValueError(
+                            f"Website '{website}' staat "
+                            f"in config.py maar heeft nog "
+                            f"geen geregistreerde "
+                            f"zoekfunctie."
+                        )
+
+                    # ----------------------------------------
+                    # Website uitvoeren
+                    # ----------------------------------------
+
+                    resultaten_website = (
+                        zoekfunctie(
                             postcode,
-                            profiel["woningtype"],
-                            profiel["min_prijs"],
-                            profiel["max_prijs"],
+                            profiel[
+                                "woningtype"
+                            ],
+                            profiel[
+                                "min_prijs"
+                            ],
+                            profiel[
+                                "max_prijs"
+                            ],
                             csv_bestand,
                         )
+                    )
 
-                    # -----------------------------------------
-                    # Immovlan
-                    # -----------------------------------------
-                    elif website == "immovlan":
-                        resultaten_website = zoek_immovlan(
-                            postcode,
-                            profiel["woningtype"],
-                            profiel["min_prijs"],
-                            profiel["max_prijs"],
-                            csv_bestand,
+                    if resultaten_website is None:
+                        resultaten_website = []
+
+                    if not isinstance(
+                        resultaten_website,
+                        list,
+                    ):
+                        raise ValueError(
+                            f"Zoekfunctie van "
+                            f"'{website}' heeft geen "
+                            f"lijst teruggegeven."
                         )
 
-                    # -----------------------------------------
-                    # Ardenne Immo
-                    # -----------------------------------------
-                    elif website == "ardenneimmo":
-                        resultaten_website = zoek_ardenneimmo(
-                            postcode,
-                            profiel["woningtype"],
-                            profiel["min_prijs"],
-                            profiel["max_prijs"],
-                            csv_bestand,
-                        )
+                    # ----------------------------------------
+                    # Centrale metadata toevoegen
+                    # ----------------------------------------
 
-                    # -----------------------------------------
-                    # Biddit
-                    # -----------------------------------------
-                    elif website == "biddit":
-                        resultaten_website = zoek_biddit(
-                            postcode,
-                            profiel["woningtype"],
-                            profiel["min_prijs"],
-                            profiel["max_prijs"],
-                            csv_bestand,
-                        )
-
-                    # -----------------------------------------
-                    # Onbekende website
-                    # -----------------------------------------
-                    else:
-                        logger.warning(
-                            "Onbekende website '%s' "
-                            "voor zoekgebied '%s'",
-                            website,
-                            gebied_naam,
-                        )
-                        continue
-
-                    # -----------------------------------------
-                    # Zoekgebied toevoegen aan iedere woning
-                    # -----------------------------------------
                     for woning in resultaten_website:
-                        woning["zoekprofiel"] = profielnaam
-                        woning["zoekgebied"] = gebied_naam
-                        woning["postcode_zoekgebied"] = postcode
+                        woning[
+                            "zoekprofiel"
+                        ] = profielnaam
+
+                        woning[
+                            "zoekgebied"
+                        ] = gebied_naam
+
+                        woning[
+                            "postcode_zoekgebied"
+                        ] = postcode
+
+                        woning[
+                            "departement"
+                        ] = departement
+
+                        # Dit maakt de bron later altijd
+                        # eenduidig herkenbaar.
+                        if not woning.get(
+                            "bron_sleutel"
+                        ):
+                            woning[
+                                "bron_sleutel"
+                            ] = website
+
+                        if not woning.get(
+                            "bron"
+                        ):
+                            woning[
+                                "bron"
+                            ] = mooie_bronnaam(
+                                website
+                            )
 
                     alle_nieuwe_woningen.extend(
                         resultaten_website
@@ -578,7 +852,9 @@ def main():
                         "nieuwe woning(en)",
                         website,
                         gebied_naam,
-                        len(resultaten_website),
+                        len(
+                            resultaten_website
+                        ),
                     )
 
                 except Exception:
@@ -592,8 +868,8 @@ def main():
                         postcode,
                     )
 
-                    # Een fout op één website/gebied
-                    # mag de rest van de Ardennen niet stoppen.
+                    # Een fout op één bron/postcode
+                    # mag de rest van Frankrijk niet stoppen.
 
                 finally:
                     website_looptijd = (
@@ -608,7 +884,8 @@ def main():
 
                     logger.info(
                         "Looptijd website '%s' voor "
-                        "zoekgebied '%s': %.1f seconden",
+                        "zoekgebied '%s': "
+                        "%.1f seconden",
                         website,
                         gebied_naam,
                         website_looptijd,
@@ -624,15 +901,18 @@ def main():
             profielnaam,
         )
 
-    # ---------------------------------------------------------
+    # ========================================================
     # Deduplicatie
-    # ---------------------------------------------------------
+    # ========================================================
+
     aantal_voor_deduplicatie = len(
         alle_nieuwe_woningen
     )
 
-    unieke_nieuwe_woningen = verwijder_dubbele_woningen(
-        alle_nieuwe_woningen
+    unieke_nieuwe_woningen = (
+        verwijder_dubbele_woningen(
+            alle_nieuwe_woningen
+        )
     )
 
     aantal_na_deduplicatie = len(
@@ -644,56 +924,65 @@ def main():
         - aantal_na_deduplicatie
     )
 
-    nieuwe_per_bron = {
-        "Immoweb": 0,
-        "Immovlan": 0,
-        "Ardenne Immo": 0,
-        "Biddit": 0,
-        "Onbekend": 0,
-    }
-
-    for woning in alle_nieuwe_woningen:
-        bron = bepaal_bron(
-            woning
-        )
-
-        nieuwe_per_bron[bron] += 1
-
     logger.info(
         "Deduplicatie afgerond: "
-        "%s advertenties -> %s unieke woningen",
+        "%s advertenties -> "
+        "%s unieke woningen",
         aantal_voor_deduplicatie,
         aantal_na_deduplicatie,
     )
 
     logger.info(
-        "Dubbele advertenties samengevoegd: %s",
+        "Dubbele advertenties "
+        "samengevoegd: %s",
         aantal_dubbelen,
     )
 
-    # ---------------------------------------------------------
-    # AI-statistieken per bron
-    # Altijd initialiseren, ook als er 0 nieuwe woningen zijn.
-    # ---------------------------------------------------------
-    ai_per_bron = {
-        "Immoweb": 0,
-        "Immovlan": 0,
-        "Ardenne Immo": 0,
-        "Biddit": 0,
-        "Onbekend": 0,
+    # ========================================================
+    # Nieuwe advertenties per bron
+    # ========================================================
+
+    nieuwe_per_bron = {
+        website: 0
+        for website in actieve_websites
     }
 
-    # ---------------------------------------------------------
+    onbekende_bronnen = 0
+
+    for woning in alle_nieuwe_woningen:
+        bron_sleutel = bepaal_bron_sleutel(
+            woning
+        )
+
+        if bron_sleutel in nieuwe_per_bron:
+            nieuwe_per_bron[
+                bron_sleutel
+            ] += 1
+        else:
+            onbekende_bronnen += 1
+
+    # ========================================================
+    # AI-statistieken
+    # ========================================================
+
+    ai_per_bron = {
+        website: 0
+        for website in actieve_websites
+    }
+
+    ai_onbekende_bronnen = 0
+
+    # ========================================================
     # AI Huizencoach
-    #
-    # Pas NA deduplicatie zodat dezelfde woning niet
-    # meerdere keren door de AI wordt beoordeeld.
-    # ---------------------------------------------------------
+    # ========================================================
+
     if unieke_nieuwe_woningen:
         ai_starttijd = perf_counter()
 
-        unieke_nieuwe_woningen = verrijk_met_ai_huizencoach(
-            unieke_nieuwe_woningen
+        unieke_nieuwe_woningen = (
+            verrijk_met_ai_huizencoach(
+                unieke_nieuwe_woningen
+            )
         )
 
         ai_looptijd = (
@@ -705,15 +994,23 @@ def main():
             if woning.get(
                 "ai_score"
             ) is not None:
-                bron = bepaal_bron(
-                    woning
+                bron_sleutel = (
+                    bepaal_bron_sleutel(
+                        woning
+                    )
                 )
 
-                ai_per_bron[bron] += 1
+                if bron_sleutel in ai_per_bron:
+                    ai_per_bron[
+                        bron_sleutel
+                    ] += 1
+                else:
+                    ai_onbekende_bronnen += 1
 
-    # ---------------------------------------------------------
-    # Eén gecombineerde e-mail
-    # ---------------------------------------------------------
+    # ========================================================
+    # E-mail
+    # ========================================================
+
     if unieke_nieuwe_woningen:
         email_starttijd = perf_counter()
 
@@ -723,9 +1020,11 @@ def main():
             )
 
             logger.info(
-                "Gecombineerde e-mail verstuurd met "
-                "%s unieke nieuwe woning(en)",
-                len(unieke_nieuwe_woningen),
+                "Gecombineerde e-mail verstuurd "
+                "met %s unieke nieuwe woning(en)",
+                len(
+                    unieke_nieuwe_woningen
+                ),
             )
 
         except Exception:
@@ -751,12 +1050,18 @@ def main():
             "geen e-mail verstuurd"
         )
 
-    # ---------------------------------------------------------
+    # ========================================================
     # Samenvatting
-    # ---------------------------------------------------------
-    looptijd = perf_counter() - starttijd
+    # ========================================================
 
-    logger.info("=" * 60)
+    looptijd = (
+        perf_counter()
+        - starttijd
+    )
+
+    logger.info(
+        "=" * 60
+    )
 
     logger.info(
         "Samenvatting Huizenzoeker %s",
@@ -765,22 +1070,37 @@ def main():
 
     logger.info(
         "Testmodus                   : %s",
-        "AAN" if TEST_MODUS else "UIT",
+        "AAN"
+        if TEST_MODUS
+        else "UIT",
     )
 
     logger.info(
         "Zoekprofielen              : %s",
-        len(ZOEKPROFIELEN),
+        len(
+            ZOEKPROFIELEN
+        ),
     )
 
     logger.info(
         "Zoekgebieden beschikbaar   : %s",
-        len(ZOEKGEBIEDEN),
+        len(
+            ZOEKGEBIEDEN
+        ),
     )
 
     logger.info(
         "Zoekgebieden actief        : %s",
-        len(ACTIEVE_ZOEKGEBIEDEN),
+        len(
+            ACTIEVE_ZOEKGEBIEDEN
+        ),
+    )
+
+    logger.info(
+        "Actieve websites           : %s",
+        len(
+            actieve_websites
+        ),
     )
 
     logger.info(
@@ -814,85 +1134,100 @@ def main():
         aantal_na_deduplicatie,
     )
 
-    logger.info("-" * 60)
+    # ========================================================
+    # Nieuwe woningen per bron
+    # ========================================================
+
+    if actieve_websites:
+        logger.info(
+            "-" * 60
+        )
+
+        logger.info(
+            "Nieuwe advertenties per bron"
+        )
+
+        for website in actieve_websites:
+            logger.info(
+                "%-30s : %s",
+                mooie_bronnaam(
+                    website
+                ),
+                nieuwe_per_bron.get(
+                    website,
+                    0,
+                ),
+            )
+
+        if onbekende_bronnen:
+            logger.info(
+                "%-30s : %s",
+                "Onbekend",
+                onbekende_bronnen,
+            )
+
+    # ========================================================
+    # AI per bron
+    # ========================================================
+
+    if actieve_websites:
+        logger.info(
+            "-" * 60
+        )
+
+        logger.info(
+            "AI-analyses per bron"
+        )
+
+        for website in actieve_websites:
+            logger.info(
+                "%-30s : %s",
+                mooie_bronnaam(
+                    website
+                ),
+                ai_per_bron.get(
+                    website,
+                    0,
+                ),
+            )
+
+        if ai_onbekende_bronnen:
+            logger.info(
+                "%-30s : %s",
+                "Onbekend",
+                ai_onbekende_bronnen,
+            )
+
+    # ========================================================
+    # Performance
+    # ========================================================
 
     logger.info(
-        "Nieuwe advertenties per bron"
+        "-" * 60
     )
-
-    for bron in (
-        "Immoweb",
-        "Immovlan",
-        "Ardenne Immo",
-        "Biddit",
-    ):
-        logger.info(
-            "%-30s : %s",
-            bron,
-            nieuwe_per_bron[bron],
-        )
-
-    if nieuwe_per_bron["Onbekend"]:
-        logger.info(
-            "%-30s : %s",
-            "Onbekend",
-            nieuwe_per_bron["Onbekend"],
-        )
-
-    logger.info("-" * 60)
-
-    logger.info(
-        "AI-analyses per bron"
-    )
-
-    for bron in (
-        "Immoweb",
-        "Immovlan",
-        "Ardenne Immo",
-        "Biddit",
-    ):
-        logger.info(
-            "%-30s : %s",
-            bron,
-            ai_per_bron[bron],
-        )
-
-    if ai_per_bron["Onbekend"]:
-        logger.info(
-            "%-30s : %s",
-            "Onbekend",
-            ai_per_bron["Onbekend"],
-        )
-
-    logger.info("-" * 60)
 
     logger.info(
         "Looptijd per bron"
     )
 
-    logger.info(
-        "%-30s : %.1f seconden",
-        "Immoweb",
-        zoektijd_per_bron["immoweb"],
-    )
-
-    logger.info(
-        "%-30s : %.1f seconden",
-        "Immovlan",
-        zoektijd_per_bron["immovlan"],
-    )
-
-    logger.info(
-        "%-30s : %.1f seconden",
-        "Ardenne Immo",
-        zoektijd_per_bron["ardenneimmo"],
-    )
-
-    logger.info(
-        "%-30s : %.1f seconden",
-        "Biddit",
-        zoektijd_per_bron["biddit"],
-    )
+    if actieve_websites:
+        for website in actieve_websites:
+            logger.info(
+                "%-30s : %.1f seconden",
+                mooie_bronnaam(
+                    website
+                ),
+                zoektijd_per_bron.get(
+                    website,
+                    0.0,
+                ),
+            )
+    else:
+        logger.info(
+            "%-30s : %s",
+            "Geen actieve websites",
+            "-",
+        )
 
     totale_zoektijd = sum(
         zoektijd_per_bron.values()
@@ -916,16 +1251,28 @@ def main():
         email_looptijd,
     )
 
-    logger.info("-" * 60)
+    logger.info(
+        "-" * 60
+    )
 
     logger.info(
-        "Totale looptijd            : %.1f seconden",
+        "Totale looptijd            : "
+        "%.1f seconden",
         looptijd,
     )
 
-    logger.info("=" * 60)
-    logger.info("Huizenzoeker afgerond")
+    logger.info(
+        "=" * 60
+    )
 
+    logger.info(
+        "Huizenzoeker afgerond"
+    )
+
+
+# ============================================================
+# PROGRAMMA STARTEN
+# ============================================================
 
 if __name__ == "__main__":
     main()
