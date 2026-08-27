@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Gevoelige gegevens
+.env
+
+# Logs
+*.log
+
+# Lokale data
+*.csv
+
+# Productiehistorie Huizenzoeker WEL bewaren
+!woningen_*.csv
+
+# Diagnosebestanden
+*.png
+resultaten.html
+
+# Playwright
+playwright-report/
+test-results/
+
+CSV Backup/

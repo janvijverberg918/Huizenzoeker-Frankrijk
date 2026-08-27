@@ -1,0 +1,25 @@
+Huizenzoeker 3.2.0 - WORKING BASELINE
+
+Datum: 17-08-2026
+
+Status:
+- Immoweb zoeken werkt
+- Immovlan zoeken werkt
+- Ardenne Immo zoeken werkt
+- Biddit zoeken werkt
+- Deduplicatie werkt
+- AI Huizencoach werkt
+- Detailanalyse Immoweb werkt
+- Detailanalyse Immovlan werkt
+- Detailanalyse Ardenne Immo werkt
+- Detailanalyse Biddit werkt
+- HTML e-mail met AI-analyse werkt
+- Foto's in e-mail werken
+- TEST_MODUS met 1 zoekgebied succesvol getest
+- 4 van 4 zoekopdrachten geslaagd
+- 0 AI-analyses mislukt in volledige testrun
+
+Backup versie 3.2.0 : Proton Drive onder "C:\Users\leo_d\Proton Drive\leodijkhuizen\My files\Python\Python Programs\Huizenzoeker"
+
+Volgende stap:
+- Volledige run met alle 31 zoekgebieden.
