@@ -68,11 +68,6 @@ SLOW_MO = (
 # GEVALIDEERDE DIRECTE ROUTES
 # ============================================================
 
-BIENICI_DIRECTE_ROUTES = {
-    "08600": "givet",
-}
-
-
 # ============================================================
 # ALGEMENE HELPERS
 # ============================================================
@@ -248,12 +243,12 @@ def maak_zoek_url(
     woningtype,
 ):
     """
-    Bouwt een gevalideerde directe Bien'ici zoek-URL.
+    Bouwt een generieke Bien'ici zoek-URL
+    op basis van postcode.
 
-    Momenteel:
-        08600 -> Givet
-
-    Andere postcodes worden nog niet automatisch gegokt.
+    Voorbeeld:
+        08600 ->
+        https://www.bienici.com/recherche/achat/08600/maisonvilla
     """
 
     postcode = str(
@@ -270,21 +265,17 @@ def maak_zoek_url(
             f"woningtype 'huis', niet '{woningtype}'"
         )
 
-    plaats_slug = (
-        BIENICI_DIRECTE_ROUTES.get(
-            postcode
-        )
-    )
-
-    if not plaats_slug:
+    if not re.fullmatch(
+        r"\d{5}",
+        postcode,
+    ):
         raise ValueError(
-            "Nog geen gevalideerde Bien'ici-route "
-            f"voor postcode {postcode}"
+            f"Ongeldige Franse postcode: {postcode}"
         )
 
     return (
         f"{BASE_URL}/recherche/achat/"
-        f"{plaats_slug}-{postcode}/maisonvilla"
+        f"{postcode}/maisonvilla"
     )
 
 
