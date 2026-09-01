@@ -15,9 +15,9 @@ load_dotenv()
 # =========================================================
 # Testmodus
 # =========================================================
-
+BOOTSTRAP_MODUS = True
 # Tijdens ontwikkeling ALTIJD eerst True gebruiken.
-TEST_MODUS = True
+TEST_MODUS = False
 
 # Alleen gebruikt als TEST_MODUS = True.
 #
