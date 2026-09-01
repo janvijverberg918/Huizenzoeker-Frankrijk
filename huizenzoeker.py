@@ -1,5 +1,10 @@
 from time import perf_counter
 
+from bienici import (
+    haal_bienici_advertentie_op,
+    zoek_bienici,
+)
+
 from config import (
     ACTIEVE_ZOEKGEBIEDEN,
     APP_NAME,
@@ -14,6 +19,7 @@ from deduplicatie import verwijder_dubbele_woningen
 from emailer import stuur_nieuwe_woningen
 from logger import logger
 from ai_analyse import analyseer_woning
+from logicimmo import zoek_logicimmo
 
 
 # ============================================================
@@ -72,29 +78,20 @@ from ai_analyse import analyseer_woning
 
 
 ZOEKFUNCTIES = {
-    # Voorbeeld voor later:
-    #
-    # "seloger": zoek_seloger,
+    "bienici": zoek_bienici,
 }
 
 
 DETAILFUNCTIES = {
-    # Voorbeeld voor later:
-    #
-    # "seloger": haal_seloger_advertentie_op,
+    "bienici": haal_bienici_advertentie_op,#
 }
-
-
 # Mooie namen voor logging en e-mail/statistieken.
 #
 # Zodra een bron wordt toegevoegd, komt hier ook de
 # gebruikersvriendelijke naam te staan.
 BRONNAMEN = {
-    # "seloger": "SeLoger",
-    # "leboncoin": "Leboncoin",
-    # "bienici": "Bien'ici",
-    # "logicimmo": "Logic-Immo",
-}
+     "bienici": "Bien'ici",
+  }
 
 
 # ============================================================

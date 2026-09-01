@@ -387,7 +387,9 @@ ZOEKPROFIELEN = [
         "woningtype": "huis",
         "min_prijs": 80000,
         "max_prijs": 220000,
-        "websites": [],
+        "websites": [
+            "bienici",
+        ]
     },
 ]
 
