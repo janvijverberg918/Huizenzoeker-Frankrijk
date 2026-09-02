@@ -3,6 +3,10 @@ name: Huizenzoeker Frankrijk productie
 on:
   workflow_dispatch:
 
+  schedule:
+    - cron: "0 8 * * *"
+      timezone: "Europe/Amsterdam"
+
 permissions:
   contents: write
 
@@ -69,7 +73,7 @@ jobs:
           print("Alle benodigde secrets zijn beschikbaar.")
           PY
 
-      - name: E-mailtest uitvoeren
+      - name: Huizenzoeker uitvoeren
         env:
           EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
@@ -77,7 +81,7 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python test_email_github.py
+          xvfb-run -a python huizenzoeker.py
 
       - name: Gewijzigde woninghistorie opslaan
         run: |
