@@ -77,6 +77,8 @@ def stuur_testmail():
             "Gmail heeft de aanmelding geweigerd."
         )
 
+        raise
+
         print(
             "Controleer het Gmail-adres "
             "en het app-wachtwoord."
