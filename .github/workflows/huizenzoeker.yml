@@ -92,3 +92,29 @@ jobs:
             git commit -m "Update woninghistorie na automatische run"
             git push
           fi
+            emailtest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 installeren
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Python packages installeren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: E-mailtest uitvoeren
+        env:
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python test_email_github.py
