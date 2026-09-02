@@ -1,0 +1,94 @@
+name: Huizenzoeker Frankrijk productie
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  huizenzoeker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 installeren
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Python packages installeren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Playwright Chromium installeren
+        run: |
+          python -m playwright install --with-deps chromium
+
+      - name: Secrets controleren
+        env:
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+
+          namen = [
+              "EMAIL_PROVIDER",
+              "EMAIL_ADDRESS",
+              "EMAIL_PASSWORD",
+              "EMAIL_TO",
+              "OPENAI_API_KEY",
+          ]
+
+          ontbrekend = []
+
+          for naam in namen:
+              if os.getenv(naam):
+                  print(f"{naam}: OK")
+              else:
+                  print(f"{naam}: ONTBREEKT")
+                  ontbrekend.append(naam)
+
+          if ontbrekend:
+              print()
+              print("Ontbrekende GitHub Secrets:")
+              for naam in ontbrekend:
+                  print(f"- {naam}")
+              sys.exit(1)
+
+          print()
+          print("Alle benodigde secrets zijn beschikbaar.")
+          PY
+
+      - name: Huizenzoeker uitvoeren
+        env:
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          xvfb-run -a python huizenzoeker.py
+
+      - name: Gewijzigde woninghistorie opslaan
+        run: |
+          git config user.name "Huizenzoeker Bot"
+          git config user.email "huizenzoeker-bot@users.noreply.github.com"
+
+          git add woningen_*.csv
+
+          if git diff --cached --quiet; then
+            echo "Geen wijzigingen in woninghistorie."
+          else
+            git commit -m "Update woninghistorie na automatische run"
+            git push
+          fi
