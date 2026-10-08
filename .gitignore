@@ -41,6 +41,3 @@ leboncoin_next_data.json
 leboncoin_email_body_debug.txt
 
 # Leboncoin lokale statusbestanden
-leboncoin_verwerkt.json
-leboncoin_retry.json
-leboncoin_onbeschikbaar.json
