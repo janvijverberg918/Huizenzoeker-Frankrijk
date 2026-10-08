@@ -377,7 +377,8 @@ def maak_ai_html(woning):
     """
 
 def stuur_nieuwe_woningen(
-    nieuwe_woningen
+    nieuwe_woningen,
+    bron_titel=None,
 ):
     """
     Stuurt één HTML-e-mail, gegroepeerd per zoekprofiel.
@@ -450,12 +451,19 @@ def stuur_nieuwe_woningen(
     bericht["From"] = EMAIL_ADDRESS
     bericht["To"] = EMAIL_TO
 
-    bericht["Subject"] = (
-        f"[Huizenzoeker] {totaal_aantal} nieuwe "
-        f"woning{'en' if totaal_aantal != 1 else ''} "
-        f"in {aantal_profielen} zoekprofiel"
-        f"{'en' if aantal_profielen != 1 else ''}"
-    )
+    if bron_titel:
+        bericht["Subject"] = (
+            f"[Huizenzoeker Frankrijk - {bron_titel}] "
+            f"{totaal_aantal} nieuwe "
+            f"woning{'en' if totaal_aantal != 1 else ''}"
+        )
+    else:
+        bericht["Subject"] = (
+            f"[Huizenzoeker] {totaal_aantal} nieuwe "
+            f"woning{'en' if totaal_aantal != 1 else ''} "
+            f"in {aantal_profielen} zoekprofiel"
+            f"{'en' if aantal_profielen != 1 else ''}"
+        )
 
     # ---------------------------------------------------------
     # Platte tekstversie

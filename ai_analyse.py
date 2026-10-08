@@ -186,7 +186,21 @@ BELANGRIJKE REGELS:
 - Bij openbare verkoop mag een startprijs, openingsbod of huidig bod nooit als gewone vraagprijs worden beschreven.
 - Zet ontbrekende informatie nooit onder aandachtspunten; ontbrekende gegevens horen uitsluitend onder ontbrekende_informatie.
 - Formuleer het ontbreken van een negatief kenmerk nooit als aandachtspunt. Als een woning bijvoorbeeld als "Goed" staat vermeld en er geen grote renovatie wordt genoemd, is dat geen negatief punt.
+- "Travaux à prévoir", "À rafraîchir" of vergelijkbare algemene staat-aanduidingen
+  betekenen niet automatisch een grote of volledige renovatie.
+- Noem renovatie alleen een dealbreaker wanneer de advertentie expliciet spreekt over
+  "à rénover entièrement", "rénovation complète", "gros travaux" of een vergelijkbaar
+  duidelijke formulering voor ingrijpende renovatie.
+  - AANDACHTSPUNTEN mogen uitsluitend bekende, expliciet negatieve eigenschappen bevatten.
+- Zet NOOIT onbekende, ontbrekende of niet-vermelde informatie onder aandachtspunten.
+- Formuleringen zoals "geen informatie over", "onbekend of", "niet vermeld" en
+  "niet duidelijk of" horen uitsluitend onder ontbrekende_informatie.
+- Als een criterium uit het leefstijlprofiel niet uit de advertentie kan worden vastgesteld,
+  mag dit de betrouwbaarheid verlagen, maar NIET de score en NIET als aandachtspunt worden genoemd.
+- Woonoppervlakte mag alleen als aandachtspunt worden genoemd wanneer het leefstijlprofiel
+  expliciet een minimale woonoppervlakte voorschrijft en de woning daaronder zit.
 
+  
 LEEFSTIJLPROFIEL:
 {json.dumps(
     AI_LEEFSTIJLPROFIEL,

@@ -26,3 +26,21 @@ playwright-report/
 test-results/
 
 CSV Backup/
+
+credentials.json
+token.json
+
+# ============================================================
+# Leboncoin lokale/runtime bestanden
+# ============================================================
+
+# Opgeslagen Leboncoin pagina's en debugdata
+leboncoin_detail.html
+leboncoin_ad.json
+leboncoin_next_data.json
+leboncoin_email_body_debug.txt
+
+# Leboncoin lokale statusbestanden
+leboncoin_verwerkt.json
+leboncoin_retry.json
+leboncoin_onbeschikbaar.json
