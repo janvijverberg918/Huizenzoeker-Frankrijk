@@ -119,11 +119,6 @@
     "laatste_fout": "RuntimeError: Leboncoin detailpagina gaf HTTP status 403",
     "laatste_poging": "2026-09-28T15:00:36.967275+00:00"
   },
-  "3241122967": {
-    "pogingen": 1,
-    "laatste_fout": "RuntimeError: Leboncoin detailpagina gaf HTTP status 403",
-    "laatste_poging": "2026-09-28T15:00:39.166387+00:00"
-  },
   "3274468073": {
     "pogingen": 1,
     "laatste_fout": "RuntimeError: Leboncoin detailpagina gaf HTTP status 403",
@@ -238,11 +233,6 @@
     "pogingen": 1,
     "laatste_fout": "RuntimeError: Leboncoin detailpagina gaf HTTP status 403",
     "laatste_poging": "2026-09-28T15:01:39.933230+00:00"
-  },
-  "3273341938": {
-    "pogingen": 1,
-    "laatste_fout": "RuntimeError: Leboncoin detailpagina gaf HTTP status 403",
-    "laatste_poging": "2026-09-28T15:01:41.784472+00:00"
   },
   "3208588420": {
     "pogingen": 1,
@@ -608,11 +598,6 @@
     "pogingen": 1,
     "laatste_fout": "RuntimeError: Leboncoin detailpagina gaf HTTP status 403",
     "laatste_poging": "2026-10-06T06:46:06.678744+00:00"
-  },
-  "3278782351": {
-    "pogingen": 1,
-    "laatste_fout": "RuntimeError: Leboncoin detailpagina gaf HTTP status 403",
-    "laatste_poging": "2026-10-06T07:44:30.867718+00:00"
   },
   "3244350127": {
     "pogingen": 1,
