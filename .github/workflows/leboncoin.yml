@@ -109,8 +109,9 @@ jobs:
           print()
           print("Alle benodigde secrets zijn beschikbaar.")
           PY
-
+       
       - name: Leboncoin Huizenzoeker uitvoeren
+        id: leboncoin_run
         env:
           EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
@@ -120,6 +121,17 @@ jobs:
         run: |
           xvfb-run -a python leboncoin_runner.py
 
+      - name: Foutmelding per e-mail versturen
+        if: failure() && steps.leboncoin_run.outcome == 'failure'
+        env:
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          WORKFLOW_ERROR: "De automatische Leboncoin-run is mislukt. Controleer de GitHub Actions-run voor de exacte foutmelding."
+        run: |
+          python stuur_workflow_fout.py
+          
       - name: Leboncoin status opslaan
         if: always()
         run: |

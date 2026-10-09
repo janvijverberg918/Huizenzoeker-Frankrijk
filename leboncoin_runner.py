@@ -63,6 +63,20 @@ MAX_ADVERTENTIES_PER_RUN = 3
 # Pauze tussen twee Leboncoin-detailrequests.
 DETAIL_WACHTTIJD_SECONDEN = 4
 
+def is_gmail_invalid_grant(exc):
+    """
+    Controleert of Gmail OAuth niet meer geldig is.
+
+    Bij invalid_grant heeft opnieuw proberen geen zin.
+    Het Gmail-token moet dan worden vernieuwd.
+    """
+    tekst = str(exc).lower()
+
+    return (
+        "invalid_grant" in tekst
+        or "token has been expired or revoked" in tekst
+    )
+
 def is_http_410(exc):
     """
     Controleert of een fout aangeeft dat de advertentie
@@ -98,23 +112,65 @@ def main():
     # ========================================================
     # STAP 1 - Gmail verbinden
     # ========================================================
-
+    
     print()
     print("Gmail verbinden...")
 
-    try:
-        service = gmail_service()
-    #Start hier
-    except Exception as exc:
-        print()
-        print("FOUT bij Gmail verbinding:")
-        print(
-            f"{type(exc).__name__}: {exc}"
-        )
-        return
+    service = None
+    laatste_gmail_fout = None
+
+    for poging in range(1, 4):
+
+        try:
+            service = gmail_service()
+            laatste_gmail_fout = None
+            break
+
+        except Exception as exc:
+            laatste_gmail_fout = exc
+
+            print()
+            print(
+                f"Gmail verbinding mislukt "
+                f"(poging {poging} van 3):"
+            )
+            print(
+                f"{type(exc).__name__}: {exc}"
+            )
+
+            if is_gmail_invalid_grant(exc):
+                print()
+                print(
+                    "Gmail OAuth-token is verlopen "
+                    "of ingetrokken."
+                )
+                print(
+                    "Opnieuw proberen heeft geen zin."
+                )
+                break
+
+            if poging < 3:
+                wachttijd = 10 if poging == 1 else 30
+
+                print()
+                print(
+                    f"Tijdelijke Gmail-fout. "
+                    f"Nieuwe poging over "
+                    f"{wachttijd} seconden..."
+                )
+
+                time.sleep(
+                    wachttijd
+                )
+
+    if service is None:
+        raise RuntimeError(
+            "Leboncoin-run afgebroken: "
+            "Gmail verbinding kon niet worden gemaakt."
+        ) from laatste_gmail_fout
 
     print("Gmail verbinding: OK")
-
+   
     # ========================================================
     # STAP 2 - Leboncoin-alertmails ophalen
     # ========================================================
